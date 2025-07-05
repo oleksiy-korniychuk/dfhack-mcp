@@ -1,0 +1,15 @@
+[project]
+name = "dfhack-mcp"
+version = "0.1.0"
+description = "An MCP server that uses the dfhack_client_python package to connect to a locally running Dwarf Fortress game through DFHack's RPC connection."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "dfhack-client-python",
+    "fastapi>=0.115.14",
+    "fastapi-mcp>=0.3.4",
+    "uvicorn>=0.35.0",
+]
+
+[tool.uv.sources]
+dfhack-client-python = { path = "../dfhack-client-python" }
