@@ -3,11 +3,12 @@ A MCP server that uses the dfhack_client_python package to connect to a locally 
 """
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi_mcp import FastApiMCP
 from dfhack_client_python.dfhack_remote import connect, close
-from dfhack_client_python.dfhack import GetVersion, GetDFVersion, GetUnitList, GetWorldInfo, GetViewInfo
-from dfhack_client_python.py_export.BasicApi_pb2 import GetWorldInfoOut
+from dfhack_client_python.dfhack import (GetVersion, GetDFVersion, GetUnitList, GetWorldInfo,
+GetViewInfo, ListUnits)
+from dfhack_client_python.py_export.BasicApi_pb2 import ListUnitsIn, GetWorldInfoOut
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -61,18 +62,75 @@ async def get_view_info():
     """Get the view info for the currently running game"""
     view_info = await GetViewInfo()
     return {
-        "viewInfo": view_info
+        "view_pos_x": view_info.view_pos_x,
+        "view_pos_y": view_info.view_pos_y,
+        "view_pos_z": view_info.view_pos_z,
+        "view_size_x": view_info.view_size_x,
+        "view_size_y": view_info.view_size_y,
+        "cursor_pos_x": view_info.cursor_pos_x,
+        "cursor_pos_y": view_info.cursor_pos_y,
+        "cursor_pos_z": view_info.cursor_pos_z,
+        "follow_unit_id": view_info.follow_unit_id,
+        "follow_item_id": view_info.follow_item_id
     }
+
+@app.post("/list-units", operation_id="list_units")
+async def list_units(request: Request):
+    """Get details for the units with the given ids. Parameters: unit_ids[int]"""
+    unit_ids = (await request.json())["unit_ids"]
+    print("Unit IDs: " + str(unit_ids))
+    units = await ListUnits(input = ListUnitsIn(id_list = unit_ids))
+    unit_details = []
+    for unit in units.value:
+        unit_details.append({
+            "unitId": unit.unit_id,
+            "name": {
+                "firstName": unit.name.first_name,
+                "languageId": unit.name.language_id,
+                "lastName": unit.name.last_name,
+                "englishName": unit.name.english_name
+            },
+            "flags1": unit.flags1,
+            "flags2": unit.flags2, 
+            "flags3": unit.flags3,
+            "race": unit.race,
+            "caste": unit.caste,
+            "gender": unit.gender,
+            "civId": unit.civ_id,
+            "histfigId": unit.histfig_id,
+            "position": {
+                "x": unit.pos_x,
+                "y": unit.pos_y, 
+                "z": unit.pos_z
+            },
+            "profession": unit.profession
+        })
+    return {"units": unit_details}
 
 @app.get("/get-unit-list", operation_id="get_unit_list")
 async def get_unit_list():
     """Get the list of units in the currently running game"""
-    return { "message": "Units: " + str(len((await GetUnitList()).creature_list)) }
+    units = await GetUnitList()
+    unit_details = []
+    for unit in units.creature_list:
+        unit_details.append({
+            "id": unit.id,
+            "position": {
+                "x": unit.pos_x,
+                "y": unit.pos_y,
+                "z": unit.pos_z
+            },
+            "isSoldier": unit.is_soldier,
+            "name": unit.name,
+            "physicalDescription": unit.appearance.physical_description,
+            "professionId": unit.profession_id,
+            "age": unit.age
+        })
+    return { "unitCount": len(units.creature_list), "units": unit_details }
 
 # TODO:
 # - RunCommand (Run a DFHack command)
 # - GetBlockList (Get MapBlock info for all blocks in a 3d volume)
-# - ListUnits (Get BasicUnitInfo on a specific list of units or a list of matching units based on filters)
 # - GetPlantList? (Not sure how usefull this is as the PlatDef type only gives a location and an index ...)
 # - GetUnitListInside (GetListOf)
 # - GetViewInfo (very useful for determining what the player is currently seeing)
